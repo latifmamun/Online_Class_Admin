@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Student | IT Corner</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#ffafbd,#ffc3a0);color:white;}
+.login-container{width:400px;margin:100px auto;background:white;color:black;padding:30px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,.4);text-align:center;}
+.login-container input,.login-container button{width:90%;padding:12px;margin:10px 0;border-radius:8px;border:1px solid #ccc;}
+.login-container button{background:#ff416c;color:white;border:none;cursor:pointer;font-weight:bold;transition:0.3s;}
+.login-container button:hover{background:#ff4b2b;}
+#dashboard{display:none;max-width:900px;margin:20px auto;text-align:center;}
+h1.animated-heading{text-align:center;font-size:60px;display:flex;align-items:center;justify-content:center;gap:15px;background:linear-gradient(90deg,#ff416c,#ff4b2b,#ff416c);background-size:200% auto;font-weight:bold;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shine 3s linear infinite;margin-bottom:20px;}
+@keyframes shine{to{background-position:200% center;}}
+.progress-circle{width:150px;height:150px;border-radius:50%;background:conic-gradient(#ff416c 0% 0%, #ff4b2b 0% 100%);display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:22px;margin:20px auto;transition:0.5s;}
+.today-class{font-size:24px;font-weight:bold;margin:20px auto;padding:15px;border-radius:15px;width:fit-content;transition:0.5s;}
+.today-class.active{background:#00c853;}
+.today-class.holyday{background:#d50000;}
+.success-msg{background:#ffeb3b;color:#000;font-weight:bold;text-align:center;padding:15px;border-radius:12px;margin:20px auto;font-size:20px;transition:0.5s;}
+.card{background:rgba(255,255,255,0.1);border-radius:12px;padding:15px;margin:15px 0;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:0.3s;}
+.notes-title{font-weight:bold;font-size:18px;color:#ffd700;}
+.notes-text{font-size:16px;color:#fff;}
+</style>
+</head>
+<body>
+
+<div class="login-container" id="loginBox">
+<h2>Student Login</h2>
+<input type="email" id="sEmail" placeholder="Email">
+<input type="password" id="sPass" placeholder="Password">
+<button onclick="studentLogin()">Login</button>
+</div>
+
+<div id="dashboard">
+<h1 class="animated-heading">IT Corner</h1>
+<p id="welcomeText" style="font-size:24px;font-weight:bold;"></p>
+<div class="progress-circle" id="progressCircle">0%</div>
+<div id="todayClass" class="today-class"></div>
+<div id="successMessage" class="success-msg" style="display:none;">🎉 Successful! Your Computer Training Course Completed</div>
+
+<h3 style="text-align:center;">Class Notes</h3>
+<div id="notesSection"></div>
+</div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyAk8tP8tUWF1YrdDJLiwo_nLPhfelABIQY",
+  authDomain: "it-corner-course.firebaseapp.com",
+  databaseURL: "https://it-corner-course-default-rtdb.firebaseio.com",
+  projectId: "it-corner-course",
+  storageBucket: "it-corner-course.firebasestorage.app",
+  messagingSenderId: "149185995282",
+  appId: "1:149185995282:web:625665ffdc31f934a52ecb"
+};
+firebase.initializeApp(firebaseConfig);
+
+let currentUID;
+
+function studentLogin(){
+  let email = sEmail.value;
+  let pass = sPass.value;
+  firebase.auth().signInWithEmailAndPassword(email,pass)
+  .then(res=>{
+    currentUID=res.user.uid;
+    loginBox.style.display="none";
+    dashboard.style.display="block";
+    loadStudentLiveData(); // Live update
+  }).catch(e=>alert(e.message));
+}
+
+function loadStudentLiveData(){
+  const studentRef=firebase.database().ref("students/"+currentUID);
+  studentRef.on("value",snap=>{
+    const data=snap.val();
+    welcomeText.innerHTML="স্বাগতম, "+data.name;
+
+    // Progress Circle
+    let done = data.done||0;
+    let total = data.total||36;
+    let percent = Math.round(done/total*100);
+    progressCircle.style.background=conic-gradient(#ff416c 0% ${percent}%, #ff4b2b ${percent}% 100%);
+    progressCircle.innerText = percent+"%";
+
+    // Success message
+    if(done>=total){document.getElementById("successMessage").style.display="block";}
+    else{document.getElementById("successMessage").style.display="none";}
+
+    // Class Time & Today Class
+    const today = new Date();
+    const days = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+    let dayName = days[today.getDay()];
+
+    firebase.database().ref("classTimes").on("value",ctSnap=>{
+      const times = ctSnap.val()||{};
+      let schedule = data.schedule || {};
+      const todayDiv = document.getElementById("todayClass");
+
+      if(schedule[dayName]){
+        todayDiv.className="today-class active";
+        todayDiv.innerText="আজ আপনার ক্লাস আছে! 📚\nসময়: "+(times[dayName]||"Not Set");
+      }else{
+        todayDiv.className="today-class holyday";
+        todayDiv.innerText="আজ ছুটি (Holyday) ❌";
+      }
+    });
+
+    // Notes Section
+    const notesDiv = document.getElementById("notesSection");
+    notesDiv.innerHTML="";
+    const notes = data.notes || {};
+    for(let key in notes){
+      let note = notes[key];
+      const card = document.createElement("div");
+      card.className="card";
+      card.innerHTML=<div class="notes-title">${note.title}</div><div class="notes-text">${note.note}</div><div style="text-align:right;font-size:12px;">${note.date}</div>;
+      notesDiv.appendChild(card);
+    }
+  });
+}
+</script>
+</body>
+</html>
