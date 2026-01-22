@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Teacher | IT Corner</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#4facfe,#00f2fe);color:white;}
+.login-container{width:400px;margin:100px auto;background:white;color:black;padding:30px;border-radius:15px;box-shadow:0 10px 25px rgba(0,0,0,.4);text-align:center;}
+.login-container input,.login-container button{width:90%;padding:12px;margin:10px 0;border-radius:8px;border:1px solid #ccc;}
+.login-container button{background:#0072ff;color:white;border:none;cursor:pointer;font-weight:bold;transition:0.3s;}
+.login-container button:hover{background:#005bb5;}
+#dashboard{display:none;max-width:1200px;margin:30px auto;}
+h1.animated-heading{text-align:center;font-size:60px;display:flex;align-items:center;justify-content:center;gap:15px;background:linear-gradient(90deg,#ff416c,#ff4b2b,#ff416c);background-size:200% auto;font-weight:bold;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shine 3s linear infinite;margin-bottom:20px;}
+@keyframes shine{to{background-position:200% center;}}
+.container-card{background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;margin-bottom:15px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:0.3s;}
+.container-card:hover{background:rgba(255,255,255,0.2);}
+.progress-bar{width:150px;height:25px;background:#ddd;border-radius:12px;overflow:hidden;margin-right:10px;}
+.progress-fill{height:100%;width:0%;color:white;text-align:center;font-weight:bold;line-height:25px;background:linear-gradient(90deg,#ff416c,#ff4b2b);transition:width 0.5s ease;}
+button.update-btn,button.delete-btn,button.notes-btn,button.schedule-btn,button.time-btn{padding:6px 10px;border-radius:6px;border:none;color:white;cursor:pointer;font-weight:bold;margin-left:5px;transition:0.3s;}
+button.update-btn{background:#00c853;}
+button.update-btn:hover{background:#009624;}
+button.delete-btn{background:#d50000;}
+button.delete-btn:hover{background:#9b0000;}
+button.notes-btn{background:#ff9800;}
+button.notes-btn:hover{background:#f57c00;}
+button.schedule-btn{background:#2196f3;}
+button.schedule-btn:hover{background:#1565c0;}
+button.time-btn{background:#9c27b0;}
+button.time-btn:hover{background:#6a0080;}
+input.time-input{width:100px;padding:5px;margin:3px;border-radius:5px;border:1px solid #ccc;}
+</style>
+</head>
+<body>
+
+<div class="login-container" id="loginBox">
+  <h2>Teacher Login</h2>
+  <input type="email" id="tEmail" placeholder="Email">
+  <input type="password" id="tPass" placeholder="Password">
+  <button onclick="teacherLogin()">Login</button>
+</div>
+
+<div id="dashboard">
+  <h1 class="animated-heading">IT Corner</h1>
+  <p style="text-align:center;"><b>Teacher:</b> Edward Ricky | <b>Institute:</b> IT Corner</p>
+
+  <div class="container-card">
+    <div>
+      <h3>Create Student</h3>
+      <input id="sName" placeholder="Student Name"><br>
+      <input id="sEmail" placeholder="Student Email"><br>
+      <input id="sPass" placeholder="Password"><br>
+      <button onclick="createStudent()">Create Student</button>
+    </div>
+  </div>
+
+  <div class="container-card">
+    <div>
+      <h3>Set Class Time</h3>
+      Wednesday: <input type="time" id="wedTime" class="time-input"><br>
+      Thursday: <input type="time" id="thuTime" class="time-input"><br>
+      Friday: <input type="time" id="friTime" class="time-input"><br>
+      <button class="time-btn" onclick="saveClassTime()">Save Times</button>
+    </div>
+  </div>
+
+  <div id="studentList">
+    <h3 style="text-align:center;">Student List</h3>
+    <p style="text-align:center;color:#ccc;">Loading students...</p>
+  </div>
+</div>
+
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyAk8tP8tUWF1YrdDJLiwo_nLPhfelABIQY",
+  authDomain: "it-corner-course.firebaseapp.com",
+  databaseURL: "https://it-corner-course-default-rtdb.firebaseio.com",
+  projectId: "it-corner-course",
+  storageBucket: "it-corner-course.firebasestorage.app",
+  messagingSenderId: "149185995282",
+  appId: "1:149185995282:web:625665ffdc31f934a52ecb"
+};
+firebase.initializeApp(firebaseConfig);
+
+let teacherEmail="", teacherPass="";
+let lastID=0;
+
+function getNextID(){lastID+=1;return "STD"+String(lastID).padStart(3,"0");}
+
+function teacherLogin(){
+  teacherEmail=tEmail.value;
+  teacherPass=tPass.value;
+  firebase.auth().signInWithEmailAndPassword(teacherEmail,teacherPass)
+  .then(()=>{loginBox.style.display="none";dashboard.style.display="block";loadStudents();loadClassTimes();})
+  .catch(e=>alert(e.message));
+}
+
+function createStudent(){
+  if(!sEmail.value||!sPass.value){alert("Email & Password required");return;}
+  let studentID=getNextID();
+  firebase.auth().createUserWithEmailAndPassword(sEmail.value,sPass.value)
+  .then(res=>{
+    return firebase.database().ref("students/"+res.user.uid).set({
+      id:studentID,
+      name:sName.value,
+      email:sEmail.value,
+      done:0,
+      total:36,
+      notes:{},
+      schedule:{wednesday:true,thursday:true,friday:true}
+    }).then(()=>firebase.auth().signInWithEmailAndPassword(teacherEmail,teacherPass));
+  })
+  .then(()=>{alert("Student Created Successfully");loadStudents();})
+  .catch(e=>alert(e.message));
+}
+
+function loadStudents(){
+  const listDiv=document.getElementById("studentList");
+  listDiv.innerHTML="";
+  firebase.database().ref("students").once("value").then(snap=>{
+    snap.forEach(s=>{
+      const data=s.val(); const uid=s.key;
+      const done=data.done||0; const total=data.total||36;
+      const percent=Math.round(done/total*100);
+      const card=document.createElement("div");
+      card.className="container-card";
+      card.innerHTML=`
+        <div>
+          <b>${data.name} (${data.id})</b><br>${data.email}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${percent}%">${percent}%</div>
+          </div>
+          <button class="update-btn" onclick="updateClass('${uid}')">+1 Class</button>
+          <button class="delete-btn" onclick="deleteStudent('${uid}')">Delete</button>
+          <button class="notes-btn" onclick="updateNotes('${uid}','${data.name}')">Notes</button>
+          <button class="schedule-btn" onclick="updateSchedule('${uid}','${data.name}')">Schedule</button>
+        </div>`;
+      listDiv.appendChild(card);
+    });
+  });
+}
+
+function updateClass(uid){
+  firebase.database().ref("students/"+uid).once("value").then(snap=>{
+    let done=snap.val().done||0; let total=snap.val().total||36;
+    if(done>=total){alert("Course Completed 🎉");return;}
+    firebase.database().ref("students/"+uid).update({done:done+1}).then(()=>loadStudents());
+  });
+}
+
+function deleteStudent(uid){if(confirm("Are you sure?")){firebase.database().ref("students/"+uid).remove();loadStudents();}}
+
+function updateNotes(uid,name){
+  let noteTitle=prompt("Class Title (Bangla) for "+name+":","");
+  if(noteTitle===null) return;
+  let noteText=prompt("Class Note for "+name+":","");
+  if(noteText===null) return;
+  firebase.database().ref('students/'+uid+'/notes').push({
+    title:noteTitle,
+    note:noteText,
+    date:new Date().toLocaleDateString()
+  }).then(()=>{alert("Note Saved"); loadStudents();});
+}
+
+function updateSchedule(uid,name){
+  firebase.database().ref('students/'+uid+'/schedule').once("value").then(snap=>{
+    let w=confirm("Wednesday class?")?true:false;
+    let th=confirm("Thursday class?")?true:false;
+    let f=confirm("Friday class?")?true:false;
+    firebase.database().ref('students/'+uid+'/schedule').set({wednesday:w,thursday:th,friday:f});
+    alert("Schedule Updated");loadStudents();
+  });
+}
+
+function saveClassTime(){
+  const wed=wedTime.value, thu=thuTime.value, fri=friTime.value;
+  firebase.database().ref("classTimes").set({wednesday:wed,thursday:thu,friday:fri}).then(()=>alert("Class Times Saved"));
+}
+
+function loadClassTimes(){
+  firebase.database().ref("classTimes").once("value").then(snap=>{
+    const data=snap.val()||{};
+    wedTime.value=data.wednesday||"";
+    thuTime.value=data.thursday||"";
+    friTime.value=data.friday||"";
+  });
+}
+</script>
+</body>
+</html>
